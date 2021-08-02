@@ -18,7 +18,7 @@ import { ContainerHotReloadSpec } from "../../container/config"
 import { DeployServiceParams } from "../../../types/plugin/service/deployService"
 import { DeleteServiceParams } from "../../../types/plugin/service/deleteService"
 import { getForwardablePorts, killPortForwards } from "../port-forward"
-import { findServiceResource, getServiceResourceSpec } from "../util"
+import { getServiceResource, getServiceResourceSpec } from "../util"
 import { getModuleNamespace, getModuleNamespaceStatus } from "../namespace"
 import { getHotReloadSpec, configureHotReload, getHotReloadContainerName } from "../hot-reload/helpers"
 import { configureDevMode, startDevModeSync } from "../dev-mode"
@@ -40,16 +40,23 @@ export async function deployHelmService({
   const k8sCtx = ctx as KubernetesPluginContext
   const provider = k8sCtx.provider
 
+  const namespaceStatus = await getModuleNamespaceStatus({
+    ctx: k8sCtx,
+    log,
+    module,
+    provider: k8sCtx.provider,
+  })
+  const namespace = namespaceStatus.namespaceName
+
   const manifests = await getChartResources({ ctx: k8sCtx, module, devMode, hotReload, log, version: service.version })
-  const baseModule = getBaseModule(module)
 
   if (devMode || hotReload) {
     serviceResourceSpec = getServiceResourceSpec(module, getBaseModule(module))
-    serviceResource = await findServiceResource({
+    serviceResource = await getServiceResource({
       ctx,
       log,
+      provider,
       module,
-      baseModule,
       manifests,
       resourceSpec: serviceResourceSpec,
     })
@@ -60,14 +67,6 @@ export async function deployHelmService({
   }
 
   const chartPath = await getChartPath(module)
-
-  const namespaceStatus = await getModuleNamespaceStatus({
-    ctx: k8sCtx,
-    log,
-    module,
-    provider: k8sCtx.provider,
-  })
-  const namespace = namespaceStatus.namespaceName
 
   const releaseName = getReleaseName(module)
   const releaseStatus = await getReleaseStatus({ ctx: k8sCtx, service, releaseName, log, devMode, hotReload })

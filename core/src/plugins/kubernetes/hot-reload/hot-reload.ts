@@ -6,29 +6,27 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  */
 
-import { V1Deployment, V1DaemonSet, V1StatefulSet } from "@kubernetes/client-node"
 import { ContainerModule } from "../../container/config"
 import { RuntimeError, ConfigurationError } from "../../../exceptions"
 import { gardenAnnotationKey } from "../../../util/string"
 import { sortBy } from "lodash"
-import { GardenService } from "../../../types/service"
 import { LogEntry } from "../../../logger/log-entry"
-import { findServiceResource } from "../util"
+import { getServiceResource, getServiceResourceSpec } from "../util"
 import { getAppNamespace, getModuleNamespace } from "../namespace"
 import { KubernetesPluginContext } from "../config"
 import { HotReloadServiceParams, HotReloadServiceResult } from "../../../types/plugin/service/hotReloadService"
-import { BaseResource, KubernetesResource, KubernetesWorkload } from "../types"
+import { BaseResource, KubernetesPod, KubernetesResource, KubernetesWorkload } from "../types"
 import { createWorkloadManifest } from "../container/deployment"
 import { KubeApi } from "../api"
 import { GardenModule } from "../../../types/module"
 import { PluginContext } from "../../../plugin-context"
 import { getBaseModule, getChartResources } from "../helm/common"
-import { HelmModule } from "../helm/config"
+import { HelmModule, HelmService } from "../helm/config"
 import { getManifests } from "../kubernetes-module/common"
-import { KubernetesModule } from "../kubernetes-module/config"
+import { KubernetesModule, KubernetesService } from "../kubernetes-module/config"
 import { getHotReloadSpec, syncToService } from "./helpers"
 
-export type HotReloadableResource = KubernetesResource<V1Deployment | V1DaemonSet | V1StatefulSet>
+export type HotReloadableResource = KubernetesWorkload | KubernetesPod
 export type HotReloadableKind = "Deployment" | "DaemonSet" | "StatefulSet"
 
 export const hotReloadableKinds: string[] = ["Deployment", "DaemonSet", "StatefulSet"]
@@ -43,7 +41,7 @@ export async function hotReloadK8s({
   service,
 }: {
   ctx: PluginContext
-  service: GardenService
+  service: KubernetesService | HelmService
   log: LogEntry
   module: KubernetesModule | HelmModule
 }): Promise<HotReloadServiceResult> {
@@ -57,6 +55,7 @@ export async function hotReloadK8s({
 
   let manifests: KubernetesResource<BaseResource>[]
   let baseModule: GardenModule | undefined = undefined
+
   if (module.type === "helm") {
     baseModule = getBaseModule(<HelmModule>module)
     manifests = await getChartResources({
@@ -72,14 +71,14 @@ export async function hotReloadK8s({
     manifests = await getManifests({ ctx, api, log, module: <KubernetesModule>module, defaultNamespace: namespace })
   }
 
-  const resourceSpec = service.spec.serviceResource
+  const resourceSpec = getServiceResourceSpec(module, baseModule)
   const hotReloadSpec = getHotReloadSpec(service)
 
-  const workload = await findServiceResource({
+  const workload = await getServiceResource({
     ctx,
     log,
+    provider: k8sCtx.provider,
     module,
-    baseModule,
     manifests,
     resourceSpec,
   })

@@ -9,7 +9,7 @@
 import { KubernetesModule } from "./config"
 import { runAndCopy } from "../run"
 import {
-  findServiceResource,
+  getServiceResource,
   getResourceContainer,
   getResourcePodSpec,
   getServiceResourceSpec,
@@ -39,12 +39,13 @@ export async function runKubernetesTask(params: RunTaskParams<KubernetesModule>)
   const { command, args } = task.spec
   const manifests = await getManifests({ ctx, api, log, module, defaultNamespace: namespace })
   const resourceSpec = task.spec.resource || getServiceResourceSpec(module, undefined)
-  const target = await findServiceResource({
+  const target = await getServiceResource({
     ctx: k8sCtx,
     log,
+    provider: k8sCtx.provider,
     manifests,
     module,
-    baseModule: undefined,
+
     resourceSpec,
   })
   const container = getResourceContainer(target, resourceSpec.containerName)

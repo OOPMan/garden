@@ -10,7 +10,7 @@ import { HelmModule } from "./config"
 import { PodRunner, runAndCopy } from "../run"
 import { getChartResources, getBaseModule } from "./common"
 import {
-  findServiceResource,
+  getServiceResource,
   getResourceContainer,
   getResourcePodSpec,
   getServiceResourceSpec,
@@ -61,12 +61,12 @@ export async function runHelmModule({
   }
 
   const manifests = await getChartResources({ ctx: k8sCtx, module, devMode: false, hotReload: false, log, version })
-  const target = await findServiceResource({
+  const target = await getServiceResource({
     ctx: k8sCtx,
     log,
+    provider: k8sCtx.provider,
     manifests,
     module,
-    baseModule,
     resourceSpec,
   })
   const container = getResourceContainer(target, resourceSpec.containerName)
@@ -134,12 +134,12 @@ export async function runHelmTask(params: RunTaskParams<HelmModule>): Promise<Ru
   })
   const baseModule = getBaseModule(module)
   const resourceSpec = task.spec.resource || getServiceResourceSpec(module, baseModule)
-  const target = await findServiceResource({
+  const target = await getServiceResource({
     ctx: k8sCtx,
     log,
+    provider: k8sCtx.provider,
     manifests,
     module,
-    baseModule,
     resourceSpec,
   })
   const container = getResourceContainer(target, resourceSpec.containerName)
